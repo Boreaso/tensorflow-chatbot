@@ -373,7 +373,7 @@ if __name__ == '__main__':
 
     param_utils.combine_hparams(hparams, loaded_hparams)
 
-    ##hparams.mode = 'infer'
+    # hparams.mode = 'chat'
 
     chatbot = ChatBot(hparams)
     if hparams.mode == 'train':
