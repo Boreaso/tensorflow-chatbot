@@ -1,5 +1,3 @@
-<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"></script>
-
 本项目使用TensorFlow实现了一个简易的聊天机器人
 
 ## 项目结构
