@@ -34,7 +34,7 @@ corpus和data文件夹已经预置了一些语料数据，shell进入项目顶�
 
 聊天交互
 
-    python chatbot.py --mode chat  可以开始对话模式
+    python chatbot.py --mode chat 
 
 如果想要训练其他数据集，需要按照corpus文件夹下的语料数据格式存放，使用utils/preprocess.py进行语聊数据预处理，然后进行训练
 
