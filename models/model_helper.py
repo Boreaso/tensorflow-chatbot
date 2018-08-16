@@ -219,7 +219,18 @@ def get_learning_rate_decay(num_train_steps,
 
 def _single_cell(unit_type, num_units, forget_bias, dropout, mode,
                  residual_connection=False, device_str=None, residual_fn=None):
-    """Create an instance of a single RNN cell."""
+    """
+    创建一个RNN单元。
+    :param unit_type: RNN类型
+    :param num_units: 隐层神经元个数
+    :param forget_bias: 遗忘门偏置
+    :param dropout: dropout比例
+    :param mode: 训练模式（只有train模式下才设置dropout）
+    :param residual_connection: 是否使用残差连接
+    :param device_str: 设备
+    :param residual_fn: 残差方法
+    :return:
+    """
     # dropout (= 1 - keep_prob) is set to 0 during eval and infer
     dropout = dropout if mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
 

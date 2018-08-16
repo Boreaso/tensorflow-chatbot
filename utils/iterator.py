@@ -110,12 +110,10 @@ class TrainIterator(DataSetIterator):
         # 过滤长度超出最大长度的数据条目
         if self._src_max_len:
             src_tgt_dataset = src_tgt_dataset.filter(
-                lambda src, tgt: tf.size(src) < self._src_max_len,
-                num_parallel_calls=self._num_parallel_calls).prefetch(self._output_buffer_size)
+                lambda src, tgt: tf.size(src) < self._src_max_len).prefetch(self._output_buffer_size)
         if self._tgt_max_len:
             src_tgt_dataset = src_tgt_dataset.filter(
-                lambda src, tgt: tf.size(tgt) < self._tgt_max_len,
-                num_parallel_calls=self._num_parallel_calls).prefetch(self._output_buffer_size)
+                lambda src, tgt: tf.size(tgt) < self._tgt_max_len).prefetch(self._output_buffer_size)
 
         # 把原始数据集中的字符转为词汇表中的id
         src_tgt_dataset = src_tgt_dataset.map(
@@ -150,8 +148,8 @@ class TrainIterator(DataSetIterator):
                     tf.TensorShape([None]),  # src
                     tf.TensorShape([None]),  # tgt_input
                     tf.TensorShape([None]),  # tgt_output
-                    tf.TensorShape([]),  # src_len
-                    tf.TensorShape([])),  # tgt_len
+                    tf.TensorShape([]),      # src_len
+                    tf.TensorShape([])),     # tgt_len
                 # Pad the source and target sequences with eos tokens.
                 # (Though notice we don't generally need to do this since
                 # later on we will be masking out calculations past the true sequence.
@@ -159,8 +157,8 @@ class TrainIterator(DataSetIterator):
                     src_eos_id,  # src
                     tgt_eos_id,  # tgt_input
                     tgt_eos_id,  # tgt_output
-                    0,  # src_len -- unused
-                    0))  # tgt_len -- unused
+                    0,           # src_len -- unused
+                    0))          # tgt_len -- unused
 
         if self._num_buckets > 1:
             def key_func(unused_1, unused_2, unused_3, src_len, tgt_len):

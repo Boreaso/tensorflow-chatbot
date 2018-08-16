@@ -6,7 +6,7 @@ import tensorflow.contrib.training as tf_training
 from utils.vocabulary import Vocabulary
 
 
-def add_arguments(parser):
+def add_arguments(parser: argparse.ArgumentParser):
     """Build ArgumentParser."""
     assert isinstance(parser, argparse.ArgumentParser)
 

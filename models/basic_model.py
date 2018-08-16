@@ -46,13 +46,56 @@ class Base:
                  max_gradient_norm=5,
                  num_keep_ckpts=5,
                  random_seed=None):
+        """
+        :param num_train_steps: 训练step总数（迭代mini-batch总数）
+        :param vocabulary: Vocabulary对象，当前词汇表
+        :param embedding_size: 词向量维数
+        :param iterator: DataSetIterator对象，为模型提供数据以及处理过程
+        :param src_vocab_file: 源语料词汇表文件路径
+        :param src_embed_file: 源语料词向量文件路径
+        :param tgt_vocab_file: 目标语料词汇表文件路径
+        :param tgt_embed_file: 目标料词向量文件路径
+        :param mode: 训练模式, 'train' | 'eval' | 'infer'
+        :param unit_type: RNN网络类型，'lstm' | 'gru'
+        :param num_units: 隐层神经元个数（即编码器输出语义向量的大小）
+        :param forget_bias: 遗忘门偏置
+        :param dropout: dropout层比例
+        :param encoder_type: 编码器网络类型，'uni' | 'bi' | 'gnmt'
+        :param num_encoder_layers: 编码器RNN层数，如果是'bi' | 'gnmt'，必须是偶数
+        :param num_encoder_residual_layers: 编码器残差层数
+        :param num_decoder_layers: 解码器RNN层数
+        :param num_decoder_residual_layers: 解码器残差层数
+        :param optimizer: 优化器，'adam' | 'rmpprop' | 'sgd'
+        :param learning_rate: 学习率
+        :param decay_scheme: 权重衰减规则
+        :param beam_width: Beamsearch带宽
+        :param length_penalty_weight: 长度惩罚因子
+        :param attention_option: 注意力机制类型，'luong' | 'scaled_luong' | 'bahdanau' | 'normed_bahdanau'
+        :param output_attention: 是否使用注意力权重作为编码器每一步的输出。
+                Python bool.  If `True` (default), the output at each
+                time step is the attention value.  This is the behavior of Luong-style
+                attention mechanisms.  If `False`, the output at each time step is
+                the output of `cell`.  This is the behavior of Bhadanau-style
+                attention mechanisms.  In both cases, the `attention` tensor is
+                propagated to the next time step via the state and is used there.
+                This flag only controls whether the attention mechanism is propagated
+                up to the next cell in an RNN stack or to the top RNN output.
+        :param pass_hidden_state: 是否把编码器的隐层状态传给解码器作为输入，false的话解码器从0向量开始解码
+        :param var_initializer: 参数初始化器
+        :param init_weight: 如果是均匀分布初始化器，该参数指定参数初始化范围（-w, w）
+        :param time_major: 是否使用[time，batch_size]的输入维度顺序
+        :param max_gradient_norm: 梯度截断阈值
+        :param num_keep_ckpts: 最大检查点个数
+        :param random_seed: 随机种子
+        """
         self.num_train_steps = num_train_steps
 
-        assert vocabulary
+        assert vocabulary is not None
         self.vocabulary = vocabulary
         self.src_vocab_size = vocabulary.src_vocab_size
         self.tgt_vocab_size = vocabulary.tgt_vocab_size
         self.embedding_size = embedding_size
+
         assert isinstance(iterator, DataSetIterator)
         self.iterator = iterator
 
@@ -126,8 +169,10 @@ class Base:
         if self.mode == ModeKeys.TRAIN:
             # Learning rate
             self.learning_rate = tf.constant(self.learning_rate)
+
             # warm-up
             # self.learning_rate = model_helper.get_learning_rate_warmup(hparams)
+
             # decay
             self.learning_rate = model_helper.get_learning_rate_decay(
                 num_train_steps=self.num_train_steps,
@@ -236,8 +281,8 @@ class Base:
         return sample_words
 
     def _build_graph(self):
-        # Data inputs
-        self._init_iterator()
+        # Data inputs and outputs.
+        self._init_io()
 
         # Batch size
         self.batch_size = tf.size(self.encoder_input_length)
@@ -259,19 +304,22 @@ class Base:
 
         return loss, logits, sample_id, final_state
 
-    def _init_iterator(self):
+    def _init_io(self):
         # Encoder
         self.encoder_input = self.iterator.source_input
         self.encoder_input_length = self.iterator.source_sequence_length
         if self.time_major:
+            # [batch_size, time] -> [time, batch_size]
             self.encoder_input = tf.transpose(self.encoder_input)
 
         # Decoder
         if self.mode != ModeKeys.INFER:
+            # 训练和评估模式需要target
             self.decoder_target_input = self.iterator.target_input
             self.decoder_target_output = self.iterator.target_output
             self.decoder_target_length = self.iterator.target_sequence_length
             if self.time_major:
+                # [batch_size, time] -> [time, batch_size]
                 self.decoder_target_input = tf.transpose(self.decoder_target_input)
 
     def _init_embeddings(self):
@@ -482,8 +530,8 @@ class BasicModel(Base):
             elif encoder_type == "bi":
                 if num_layers % 2 != 0:
                     raise ValueError('Encoder layers must be even number when use bidirectional encoder.')
-                num_bi_layers = int(num_layers / 2)
-                num_bi_residual_layers = int(num_residual_layers / 2)
+                num_bi_layers = num_layers // 2
+                num_bi_residual_layers = num_residual_layers // 2
                 print("  encoder_type=%s, num_layers=%d, num_residual_layers=%d" %
                       (encoder_type, num_layers, num_residual_layers))
 
@@ -537,6 +585,7 @@ class BasicModel(Base):
     def _create_decoder_cell(self, encoder_outputs, encoder_state,
                              source_sequence_length):
         """Build an RNN cell that can be used by decoder."""
+
         # We only make use of encoder_outputs in attention-based models
         if self.attention_option:
             raise ValueError("BasicModel doesn't support attention.")
@@ -550,8 +599,8 @@ class BasicModel(Base):
             dropout=self.dropout,
             mode=self.mode)
 
-        # For beam search, we need to replicate encoder state beam_width times
         if self.mode == ModeKeys.INFER and self.beam_width > 0:
+            # For beam search, we need to replicate encoder state `beam_width` times
             decoder_initial_state = seq2seq.tile_batch(
                 encoder_state, multiplier=self.beam_width)
         else:
